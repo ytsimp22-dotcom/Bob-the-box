@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="pt-pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Bob the Box - Estável</title>
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #4facfe; touch-action: none; font-family: 'Arial Black', sans-serif; position: fixed; }
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 99999; color: white; text-align: center; }
+        .menu-btn { background: #ffd300; border: none; padding: 15px 50px; margin: 10px; font-size: 20px; font-weight: bold; border-radius: 50px; width: 220px; color: black; cursor: pointer; box-shadow: 0 5px 0 #b89a00; }
+        
+        #world { perspective: 1000px; width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(#4facfe, #00f2fe); }
+        #scene { position: relative; transform-style: preserve-3d; transition: transform 0.1s ease-out; }
+        
+        #player { width: 40px; height: 40px; transform-style: preserve-3d; position: absolute; z-index: 100; transition: opacity 0.2s; }
+        .p-face { position: absolute; width: 40px; height: 40px; border: 1px solid rgba(0,0,0,0.2); box-sizing: border-box; display: flex; justify-content: space-around; align-items: center; }
+        
+        /* BLOCOS OTIMIZADOS */
+        .cube { position: absolute; transform-style: preserve-3d; width: 100px; height: 100px; }
+        .face { position: absolute; width: 100px; height: 100px; border: 1px solid rgba(255,255,255,0.3); box-sizing: border-box; }
+        .plat .face { background: #4caf50; } 
+        .orange .face { background: #ff6600; border: 2px solid #fff; }
+        .glass .face { background: rgba(255, 255, 255, 0.3); border: 1px solid rgba(255,255,255,0.5); } /* Vidro sem Blur (Leve) */
+        .glass.breaking .face { background: rgba(255, 0, 0, 0.6) !important; }
+        .blue .face { background: #0070ff; border: 2px solid #fff; } /* Piso Azul Móvel */
+        .purple .face { background: #9b59b6; border: 3px solid #e0b0ff; }
+        .win .face { background: #ffca28; border: 3px solid #fff; }
+        
+        .f-t { transform: rotateX(90deg) translateZ(50px); }
+        .f-s { transform: translateZ(50px); }
+
+        /* SKINS */
+        .skin-timao { background: #000 !important; background-image: repeating-linear-gradient(90deg, transparent, transparent 8px, #fff 8px, #fff 11px) !important; }
+        .skin-vacuo { background: #000 !important; border: 2px solid #a020f0 !important; }
+        .skin-ima { background: linear-gradient(to bottom, #ff0000 50%, #0000ff 50%) !important; }
+        .skin-raio { background: #ffff00 !important; }
+        .skin-prata { background: #bdc3c7 !important; }
+        .skin-ouro { background: #f1c40f !important; }
+        .skin-fantasma { background: rgba(0, 255, 255, 0.4) !important; border: 1px solid #fff !important; }
+        .skin-gelo { background: #ade8f4 !important; }
+
+        .coin { position: absolute; transform-style: preserve-3d; width: 40px; height: 40px; }
+        .coin-inner { width: 30px; height: 30px; background: #f1c40f; border-radius: 50%; border: 3px solid #d4af37; animation: spin 1.2s linear infinite; }
+        @keyframes spin { from { transform: rotateY(0deg); } to { transform: rotateY(360deg); } }
+
+        #ui { position: fixed; top: 20px; width: 100%; display: flex; justify-content: space-between; padding: 0 20px; box-sizing: border-box; color: white; z-index: 1000; pointer-events: none; }
+        .box { background: rgba(0,0,0,0.7); padding: 10px 20px; border-radius: 20px; pointer-events: auto; border: 1px solid gold; }
+        #ctrls { position: fixed; bottom: 40px; width: 100%; display: flex; justify-content: space-around; z-index: 88888; pointer-events: none; }
+        #base { width: 110px; height: 110px; background: rgba(255,255,255,0.3); border-radius: 50%; position: relative; pointer-events: auto; border: 3px solid #fff; }
+        #stick { width: 45px; height: 45px; background: #fff; border-radius: 50%; position: absolute; top: 32.5px; left: 32.5px; }
+        #btn-jump { width: 100px; height: 100px; background: #ffd300; border-radius: 50%; pointer-events: auto; display: flex; align-items: center; justify-content: center; color: #000; font-weight: bold; border: 4px solid #fff; }
+        .eye { width: 8px; height: 8px; background: #000; border-radius: 50%; }
+        .eye-light { background: #fff !important; border: 1px solid #000; }
+    </style>
+</head>
+<body>
+
+<div id="main-menu" class="overlay">
+    <h1>BOB THE BOX</h1>
+    <p>FIX: PERFORMANCE & SAVE</p>
+    <button class="menu-btn" onclick="startGame()">JOGAR</button>
+</div>
+
+<div id="shop-menu" class="overlay" style="display:none;">
+    <h1>LOJA</h1>
+    <div id="skin-list" style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; max-height: 60vh; overflow-y: auto; padding: 10px;"></div>
+    <button class="menu-btn" onclick="toggleShop()">VOLTAR</button>
+</div>
+
+<div id="ui">
+    <div style="display: flex; gap: 10px;">
+        <div class="box">LVL: <span id="lvl-txt">1</span></div>
+        <div class="box" onclick="toggleShop()" style="cursor:pointer; background:gold; color:black;">💰 <span id="coin-txt">0</span></div>
+    </div>
+</div>
+
+<div id="world"><div id="scene">
+    <div id="player">
+        <div class="p-face f-t" style="transform: rotateX(90deg) translateZ(20px);"></div>
+        <div class="p-face" style="transform: rotateX(-90deg) translateZ(20px);"></div>
+        <div class="p-face" id="p-front" style="transform: translateZ(20px);"></div>
+        <div class="p-face" style="transform: rotateY(180deg) translateZ(20px);"></div>
+        <div class="p-face" style="transform: rotateY(-90deg) translateZ(20px);"></div>
+        <div class="p-face" style="transform: rotateY(90deg) translateZ(20px);"></div>
+    </div>
+</div></div>
+
+<div id="ctrls">
+    <div id="base"><div id="stick"></div></div>
+    <div id="btn-jump">PULO</div>
+</div>
+
+<script>
+    // CHAVE ORIGINAL PARA RECUPERAR O SAVE
+    const MAIN_KEY = 'bob_box_final_save'; 
+    let save = JSON.parse(localStorage.getItem(MAIN_KEY)) || { coins: 0, lvl: 0, skins: ["BOB", "TIMÃO", "VÁCUO"], current: "BOB" };
+    const saveG = () => localStorage.setItem(MAIN_KEY, JSON.stringify(save));
+
+    const skins = [
+        {name: "BOB", color: "#ffd300", jump: 15, speed: 1, val: 10},
+        {name: "TIMÃO", color: "#000", class: "skin-timao", jump: 15, speed: 1, val: 10},
+        {name: "VÁCUO", color: "#000", class: "skin-vacuo", jump: 18, speed: 1.1, val: 10, price: 0},
+        {name: "ÍMÃ", color: "red", class: "skin-ima", jump: 15, speed: 1, val: 10, price: 150, magnet: true},
+        {name: "GELO", color: "#ade8f4", class: "skin-gelo", jump: 15, speed: 1.4, val: 20, price: 2500},
+        {name: "RAIO", color: "yellow", class: "skin-raio", jump: 15, speed: 1.6, val: 10, price: 12000},
+        {name: "PRATA", color: "#bdc3c7", class: "skin-prata", jump: 15, speed: 1.1, val: 25, price: 5000},
+        {name: "OURO", color: "#f1c40f", class: "skin-ouro", jump: 15, speed: 1.1, val: 50, price: 10000},
+        {name: "FANTASMA", color: "rgba(0,255,255,0.4)", class: "skin-fantasma", jump: 15, speed: 1.1, val: 15, price: 25000, teleport: true}
+    ];
+
+    let cur = skins.find(s => s.name === save.current) || skins[0];
+    let px = 0, py = 0, pz = 100, vx = 0, vy = 0, vz = 0, isG = false, orangeActive = true, canDash = true, time = 0;
+    let platforms = [];
+    const scene = document.getElementById('scene'), player = document.getElementById('player');
+
+    function loadLevel(n) {
+        platforms.forEach(p => p.el.remove()); platforms = [];
+        save.lvl = n; saveG();
+        let lx = 0, ly = 0;
+        platforms.push({x:0, y:0, t:'plat', el: createCube('plat', 0, 0, 0)});
+        
+        let numSteps = 15 + Math.floor(n/5);
+        for(let i=1; i<=numSteps; i++){
+            let dist = 240;
+            let type = 'plat';
+            
+            if (n < 40) { if (i % 3 === 0) type = 'glass'; }
+            else if (n < 70) { if (i % 4 === 0) type = 'blue'; else if (i % 6 === 0) type = 'purple'; }
+            else { 
+                let r = Math.random();
+                if (r < 0.2) type = 'glass';
+                else if (r < 0.4) type = 'blue';
+                else if (r < 0.5) type = 'purple';
+                else if (r < 0.7) type = 'orange';
+            }
+
+            lx += dist; ly += Math.cos(i + n) * 35;
+            platforms.push({
+                x: lx, y: ly, ox: lx, oy: ly, t: type, 
+                el: createCube(type, lx, ly, 0), 
+                broken: false, breaking: false, 
+                offset: i * 0.5
+            });
+            platforms.push({x: lx, y: ly, t: 'coin', el: createCoin(lx, ly, 60), cx: lx, cy: ly, cz: 60});
+        }
+        
+        lx += 250; platforms.push({x: lx, y: ly, t: 'win', el: createCube('win', lx, ly, 0)});
+        px = 0; py = 0; pz = 100; vz = 0; canDash = true;
+        document.getElementById('lvl-txt').innerText = n + 1;
+        document.getElementById('coin-txt').innerText = save.coins;
+        updateVisual();
+    }
+
+    function createCube(type, x, y, z) {
+        const el = document.createElement('div'); el.className = `cube ${type}`;
+        el.innerHTML = `<div class="face f-t"></div><div class="face f-s"></div><div class="face" style="transform:rotateY(90deg) translateZ(50px)"></div><div class="face" style="transform:rotateY(-90deg) translateZ(50px)"></div><div class="face" style="transform:rotateX(-90deg) translateZ(50px)"></div>`;
+        el.style.transform = `translate3d(${x-50}px,${y-50}px,${z-50}px)`;
+        scene.appendChild(el); return el;
+    }
+
+    function createCoin(x, y, z) {
+        const el = document.createElement('div'); el.className = 'coin';
+        el.innerHTML = '<div class="coin-inner"></div>';
+        el.style.transform = `translate3d(${x-20}px,${y-20}px,${z}px)`;
+        scene.appendChild(el); return el;
+    }
+
+    function updateVisual() {
+        document.querySelectorAll('.p-face').forEach(f => {
+            f.style.background = cur.color;
+            if(cur.class) { f.className = "p-face " + cur.class; } else { f.className = "p-face"; }
+        });
+        const isDark = (cur.name !== 'BOB' && cur.name !== 'GELO');
+        document.getElementById('p-front').innerHTML = `<div class="eye ${isDark?'eye-light':''}"></div><div class="eye ${isDark?'eye-light':''}"></div>`;
+    }
+
+    function startGame() { 
+        document.getElementById('main-menu').style.display='none'; 
+        loadLevel(save.lvl); loop();
+        setInterval(() => { orangeActive = !orangeActive; document.querySelectorAll('.orange').forEach(el => el.style.opacity = orangeActive ? "1" : "0.1"); }, 3000);
+    }
+
+    function renderShop() {
+        const list = document.getElementById('skin-list'); list.innerHTML = "";
+        skins.forEach(s => {
+            const owned = save.skins.includes(s.name);
+            const btn = document.createElement('button');
+            btn.style.cssText = `background:${s.color}; border:2px solid gold; padding:10px; border-radius:10px; font-weight:bold; width:140px; color:${(s.name==='TIMÃO'||s.name==='VÁCUO'||s.name==='PRATA'||s.name==='FANTASMA')?'white':'black'}; margin-bottom:5px;`;
+            btn.innerHTML = `${s.name}<br>${owned ? 'USAR' : '$'+s.price}`;
+            btn.onclick = () => {
+                if(owned) { cur = s; save.current = s.name; updateVisual(); toggleShop(); saveG(); }
+                else if(save.coins >= s.price) { save.coins -= s.price; save.skins.push(s.name); renderShop(); saveG(); document.getElementById('coin-txt').innerText = save.coins; }
+            };
+            list.appendChild(btn);
+        });
+    }
+
+    function toggleShop() { const s = document.getElementById('shop-menu'); s.style.display = (s.style.display === 'none') ? 'flex' : 'none'; if(s.style.display === 'flex') renderShop(); }
+
+    document.getElementById('base').addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        const t = e.touches[0], r = document.getElementById('base').getBoundingClientRect();
+        const dx = t.clientX - (r.left + 55), dy = t.clientY - (r.top + 55);
+        const d = Math.min(Math.sqrt(dx*dx+dy*dy), 50), a = Math.atan2(dy, dx);
+        document.getElementById('stick').style.transform = `translate(${Math.cos(a)*d}px, ${Math.sin(a)*d}px)`;
+        vx = Math.cos(a)*(d/7) * cur.speed; vy = Math.sin(a)*(d/7) * cur.speed;
+    }, {passive: false});
+
+    document.getElementById('base').addEventListener('touchend', () => { vx=0; vy=0; document.getElementById('stick').style.transform='translate(0,0)'; });
+    document.getElementById('btn-jump').addEventListener('touchstart', (e) => { 
+        e.preventDefault(); 
+        if(isG) vz = cur.jump; 
+        else if(cur.teleport && canDash) { px += vx * 18; py += vy * 18; canDash = false; player.style.opacity = "0.3"; }
+    });
+
+    function loop() {
+        time += 0.05;
+        px += vx; py += vy; pz += vz; vz -= 0.8;
+        let onG = false;
+
+        platforms.forEach(b => {
+            if(b.collected) return;
+            
+            if(b.t === 'blue') {
+                b.x = b.ox + Math.sin(time + b.offset) * 85;
+                b.el.style.transform = `translate3d(${b.x-50}px,${b.y-50}px,-50px)`;
+            }
+
+            if(b.t === 'coin') {
+                if(cur.magnet && Math.sqrt((px-b.cx)**2+(py-b.cy)**2+(pz-b.cz)**2) < 250) { b.cx += (px-b.cx)*0.1; b.cy += (py-b.cy)*0.1; b.el.style.transform = `translate3d(${b.cx-20}px,${b.cy-20}px,${b.cz}px)`; }
+                if(Math.sqrt((px-b.cx)**2+(py-b.cy)**2+(pz-b.cz)**2) < 50) { b.collected=true; b.el.style.display='none'; save.coins += cur.val; document.getElementById('coin-txt').innerText = save.coins; saveG(); }
+            } else {
+                if(Math.abs(px-b.x)<65 && Math.abs(py-b.y)<65 && pz<=20 && pz>-15) {
+                    if(b.t === 'orange' && !orangeActive) return;
+                    if(b.t === 'glass' && b.broken) return;
+                    if(b.t === 'win') { if(save.lvl >= 129) { alert("ZEROU!"); save.lvl = 0; } else { loadLevel(save.lvl+1); } return; }
+                    
+                    if(b.t === 'purple') { vz = 25; } else { vz = 0; }
+                    if(b.t === 'glass' && !b.breaking) {
+                        b.breaking = true; b.el.classList.add('breaking');
+                        setTimeout(() => { b.broken = true; b.el.style.opacity = "0"; }, 1200);
+                    }
+                    pz = 20; onG = true;
+                    if(!canDash) { canDash = true; player.style.opacity = "1"; }
+                    if(b.t === 'blue') { px += Math.cos(time + b.offset) * 4.2; }
+                }
+            }
+        });
+        
+        isG = onG;
+        scene.style.transform = `rotateX(60deg) translateX(${-px}px) translateY(${-py + 150}px) translateZ(${-pz}px)`;
+        player.style.transform = `translate3d(${px-20}px, ${py-20}px, ${pz}px)`;
+        if(pz < -500) loadLevel(save.lvl);
+        requestAnimationFrame(loop);
+    }
+</script>
+</body>
+</html>
